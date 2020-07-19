@@ -9,6 +9,9 @@
 #include <unistd.h>
 #include <asm/errno.h>
 #include <errno.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <netinet/in.h>
 
 #define CRED_LENGTH 20
 #define BUFFER_SIZE 1024
@@ -16,6 +19,8 @@
 #define RETRY 3
 #define NUM_USERS 2
 #define DEFAULT_PATH "/tmp/socc"
+#define FIRMWARE_FILE "../data/tp1_client_u"
+#define FILE_BUFFER_SIZE 1500
 
 int autenticar(char *user, char *password);
 int getTelemetria(char *ipaddr);
@@ -29,16 +34,19 @@ struct Auth{
     char psw[CRED_LENGTH];
 };
 
+
+
 int main(int argc, char *argv[]) {
 
     struct Auth current_user;
     int sockfd, newsockfd;
-    int pid;
+    //int pid;
     socklen_t cli_length;
     char send_buffer[BUFFER_SIZE];
     memset(send_buffer, 0, sizeof(send_buffer));
     struct sockaddr_un st_serv, st_cli;
     signal(SIGPIPE, SIG_IGN); //
+
 
     //creacion del socket
     sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -178,13 +186,13 @@ int main(int argc, char *argv[]) {
                     memset(send_buffer, 0, sizeof(send_buffer));
                     printf("llamando a la funcion de envio...  \n");
                     strncpy(send_buffer, "1", 1);
-                    if (send(newsockfd, send_buffer, sizeof(opt), 0) < 0) {
+                    if (send(newsockfd, send_buffer, sizeof(opt), 0) < 0) { //esto es un: che, preparate para recibir
                         perror("error al enviar solicitud de firmaware update");
                     }
                     memset(send_buffer, 0, sizeof(send_buffer));
-                    //sendUpdate(newsockfd);
+                    sendUpdate(newsockfd);
                     //close(newsockfd);
-                    //kill(getpid(), SIGINT);
+                    //kill(getpid(), SIGINT); //el proceso hijo pierde contacto con su cliente y se auto detiene.
 
                     break;
 
@@ -356,45 +364,54 @@ int getTelemetria(char *ipaddr){
  */
 int sendUpdate(int sockfd_arg){
     //replicate example function
-    ///////int firmware_fd;
-    //////struct stat wtf;
-    ////////char *filename=FIRMWARE_FILE;
+    int firmware_fd;
+    struct stat wtf;
+    char *filename=FIRMWARE_FILE;
 
     //intento abrir el archivo de firmaware en este caso:
     get_dir();
-    //if ( ( firmware_fd = open(filename, O_RDONLY) ) < 0 ){
+    if ( ( firmware_fd = open(filename, O_RDONLY) ) < 0 ){ //abro el binario
         perror("error al abrir el archivo de firmware");
         return -1; //
     }
 
     int count;
-    //char buffer_envio[FILE_BUFFER_SIZE];
+    char buffer_envio[BUFFER_SIZE];
 
-    //////////////fstat(firmware_fd, &wtf);
-    ///////off_t filesize = wtf.st_size;
-    ////////////printf("DEBUG: tamaño del archivo a tranmitir: %ld\n", filesize);
-    /////////////////uint32_t bytes = htonl(filesize);
+    fstat(firmware_fd, &wtf); //wtf es un estructura "stat" que permite manipular datos dobre el archivo que voy a trabajar. En este caso es el binario del firmware
+    off_t filesize = wtf.st_size; //off_t This is a signed integer type used to represent file sizes. In the GNU C Library, this type is no narrower than int.
+    printf("DEBUG: tamaño del archivo a tranmitir: %ld\n", filesize);
 
-    ///////////char *s_bytes = (char *)&bytes;
-    /////////////printf("DEBUG: n° de bytes a enviar: %i\n", ntohl(bytes));
 
-    //intento enviar de a bytes lo que esta apuntando s_bytes, como esta compuesto s_bytes ya tiene que ver con el manejo de archivos en libc
-    ////////if ( send(sockfd_arg, s_bytes, sizeof(bytes), 0) < 0 ){
-       ///////// perror("error al enviar al archivo");
-   ///// }
+    char bytes[sizeof(filesize)] = "";
+    // snprinf (destino, size, formato, dato_entrada)
+    snprintf(bytes, sizeof(filesize), "%ld", filesize);
+    printf("%s\n", bytes);
+
+    //uint32_t bytes=filesize;
+    //char *s_bytes = (char *)&bytes;
+    printf("DEBUG: n° de bytes a enviar: %s\n", bytes);
+
+    //envio al cliente a traves del socket el tamaño del archivo a recibir
+    memset(buffer_envio,0, sizeof(buffer_envio));
+    strncpy(buffer_envio, bytes, sizeof(bytes));
+    if ( send(sockfd_arg, buffer_envio, sizeof(buffer_envio), 0) < 0 ){
+        perror("error al enviar al archivo");
+    }
 
     //voy leyendo el archivo de a partes del tamano del buffer de envio y voy enviando
-   ////// while ( ( count=(int) read(firmware_fd, buffer_envio, FILE_BUFFER_SIZE) ) > 0 ){
-        //ssize_t send(int socket, const void *buffer, size_t length, int flags);
-        // voy enviando al socket el buffer de envio que es lo que lei recien
-       /////// if (send( sockfd_arg, buffer_envio, count, 0 ) < 0 ){
-         //////   perror("error enviando el archivo, (dentro del while)");
-      ///  }
-        ///////////memset(buffer_envio, 0, BUFFER_SIZE);
-   //////// }
-    ////////close(firmware_fd); //cierro el archivo
-    /////////return 1; //return int 1: recepcion exitosa
-//////}
+    while ( ( count=(int) read(firmware_fd, buffer_envio, BUFFER_SIZE) ) > 0 ){
+         //ssize_t send(int socket, const void *buffer, size_t length, int flags);
+         //voy enviando al socket el buffer de envio que es lo que lei recien
+        if (send( sockfd_arg, buffer_envio, count, 0 ) < 0 ){
+            perror("error enviando el archivo, (dentro del while)");
+        }
+        memset(buffer_envio, 0, BUFFER_SIZE);
+    }
+
+    close(firmware_fd); //cierro el archivo
+    return 1; //return int 1: envio finalizado, no se garantiza la recepcion
+}
 
 //funcion2
 
