@@ -381,15 +381,9 @@ int sendUpdate(int sockfd_arg){
     fstat(firmware_fd, &wtf); //wtf es un estructura "stat" que permite manipular datos dobre el archivo que voy a trabajar. En este caso es el binario del firmware
     off_t filesize = wtf.st_size; //off_t This is a signed integer type used to represent file sizes. In the GNU C Library, this type is no narrower than int.
     printf("DEBUG: tamaño del archivo a tranmitir: %ld\n", filesize);
-
-
     char bytes[sizeof(filesize)] = "";
     // snprinf (destino, size, formato, dato_entrada)
     snprintf(bytes, sizeof(filesize), "%ld", filesize);
-    printf("%s\n", bytes);
-
-    //uint32_t bytes=filesize;
-    //char *s_bytes = (char *)&bytes;
     printf("DEBUG: n° de bytes a enviar: %s\n", bytes);
 
     //envio al cliente a traves del socket el tamaño del archivo a recibir
