@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
 
     //prompt 1
     //autenticacion
-/*
+
     bool auth = false;
     int intentos=RETRY;
     memset(&current_user, 0, sizeof(current_user) );
